@@ -9,6 +9,10 @@ import { Role } from './user/entites/role.entity';
 import { RedisModule } from './redis/redis.module';
 import { EmailModule } from './email/email.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt'
+import { APP_GUARD } from '@nestjs/core';
+import { LoginGuard } from './login.guard';
+import { PermissionGuard } from './permission.guard';
 
 @Module({
   imports: [
@@ -26,9 +30,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           entities: [User, Role, Permission],
           poolSize: 10,
           connectorPackage: 'mysql2',
-          extra: {
-            authPlugin: 'sha256_password',
-          },
+          // extra: {
+          //   authPlugin: 'sha256_password',
+          // },
         }
       },
       inject: [ConfigService]
@@ -37,11 +41,32 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       isGlobal: true,
       envFilePath: 'src/.env'
     }),
+    JwtModule.registerAsync({
+      global: true,
+      useFactory(configService: ConfigService) {
+        return {
+          secret: configService.get('jwt_secret'),
+          signOptions: {
+            expiresIn: '30m' // 默认 30 分钟
+          }
+        }
+      },
+      inject: [ConfigService]
+    }),
     UserModule,
     RedisModule,
     EmailModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService,
+    {
+      provide: APP_GUARD,
+      useClass: LoginGuard
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionGuard
+    }
+  ],
 })
 export class AppModule { }
